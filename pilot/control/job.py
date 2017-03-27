@@ -16,25 +16,26 @@ import time
 from pilot.util import information
 from pilot.util import https
 from pilot.util.job_description_fixer import description_fixer
-from pilot.util import signalling
 
 import logging
 logger = logging.getLogger(__name__)
-graceful_stop = signalling.GracefulStop()
 
 
-def control(queues, traces, args):
+def control(queues, graceful_stop, traces, args):
 
     threads = [threading.Thread(target=validate,
                                 kwargs={'queues': queues,
+                                        'graceful_stop': graceful_stop,
                                         'traces': traces,
                                         'args': args}),
                threading.Thread(target=retrieve,
                                 kwargs={'queues': queues,
+                                        'graceful_stop': graceful_stop,
                                         'traces': traces,
                                         'args': args}),
                threading.Thread(target=create_data_payload,
                                 kwargs={'queues': queues,
+                                        'graceful_stop': graceful_stop,
                                         'traces': traces,
                                         'args': args})]
 
@@ -42,12 +43,12 @@ def control(queues, traces, args):
 
     if args.site not in [s['name'] for s in sites]:
         logger.critical('configured site not found: {0} -- aborting'.format(args.site))
-        signalling.simulate_signal()
+        graceful_stop.set()
         return
 
     if not [site for site in sites if site['name'] == args.site and site['state'] == 'ACTIVE']:
         logger.critical('configured site is NOT ACTIVE: {0} -- aborting'.format(args.site))
-        signalling.simulate_signal()
+        graceful_stop.set()
         return
 
     logger.info('configured site: {0}'.format(args.site))
@@ -89,7 +90,7 @@ def send_state(job, state, xml=None):
     return False
 
 
-def validate(queues, traces, args):
+def validate(queues, graceful_stop, traces, args):
 
     while not graceful_stop.is_set():
         try:
@@ -125,7 +126,7 @@ def validate(queues, traces, args):
             queues.failed_jobs.put(job)
 
 
-def create_data_payload(queues, traces, args):
+def create_data_payload(queues, graceful_stop, traces, args):
 
     while not graceful_stop.is_set():
         try:
@@ -137,7 +138,7 @@ def create_data_payload(queues, traces, args):
         queues.payloads.put(job)
 
 
-def retrieve(queues, traces, args):
+def retrieve(queues, graceful_stop, traces, args):
 
     while not graceful_stop.is_set():
 
