@@ -7,6 +7,7 @@
 # Authors:
 # - Mario Lassnig, mario.lassnig@cern.ch, 2016-2017
 # - Daniel Drizhuk, d.drizhuk@gmail.com, 2017
+# - Tobias Wegner, tobias.wegner@cern.ch, 2017
 
 import Queue
 import json
@@ -50,15 +51,16 @@ def _call(args, executable, cwd=os.getcwd(), logger=logger):
     logger.info('started -- pid=%s executable=%s' % (process.pid, executable))
 
     exit_code = None
-    while exit_code is None and not args.graceful_stop.is_set():
+    while exit_code is None:
         if args.graceful_stop.wait(timeout=1):
             logger.debug('breaking: sending SIGTERM pid=%s' % process.pid)
             process.terminate()
             logger.debug('breaking: sleep 3s before sending SIGKILL pid=%s' % process.pid)
             time.sleep(3)
             process.kill()
-        else:
-            exit_code = process.poll()
+            return False
+        
+        exit_code = process.poll()
 
     logger.info('finished -- pid=%s exit_code=%s' % (process.pid, exit_code))
     stdout, stderr = process.communicate()
@@ -152,6 +154,7 @@ def _stage_out(args, outfile, job):
     log = logger.getChild(str(job['PandaID']))
 
     os.environ['RUCIO_LOGGING_FORMAT'] = '{0}%(asctime)s %(levelname)s [%(message)s]'
+
     executable = ['/usr/bin/env',
                   'rucio', '-v', 'upload',
                   '--summary', '--no-register',
@@ -164,7 +167,7 @@ def _stage_out(args, outfile, job):
                  executable,
                  cwd=job['working_dir'],
                  logger=log):
-        return None 
+        return None
 
     summary = None
     with open(os.path.join(job['working_dir'], 'rucio_upload.json'), 'rb') as summary_file:

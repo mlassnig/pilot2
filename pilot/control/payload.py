@@ -7,6 +7,7 @@
 # Authors:
 # - Mario Lassnig, mario.lassnig@cern.ch, 2016-2017
 # - Daniel Drizhuk, d.drizhuk@gmail.com, 2017
+# - Tobias Wegner, tobias.wegner@cern.ch, 2017
 
 import Queue
 import commands
@@ -115,18 +116,19 @@ def wait_graceful(args, proc, job):
     log = logger.getChild(str(job['PandaID']))
 
     exit_code = None
-    while exit_code is None and not args.graceful_stop.is_set():
+    while exit_code is None:
+        send_state(job, 'running')
+
         if args.graceful_stop.wait(timeout=10):
             log.debug('breaking -- sending SIGTERM pid=%s' % proc.pid)
             proc.terminate()
             log.debug('breaking -- sleep 3s before sending SIGKILL pid=%s' % proc.pid)
             time.sleep(3)
             proc.kill()
-        else:
-            exit_code = proc.poll()
-            log.info('running: pid=%s exit_code=%s' % (proc.pid, exit_code))
-            if exit_code is None:
-                send_state(job, 'running')
+            return None
+
+        exit_code = proc.poll()
+        log.info('running: pid=%s exit_code=%s' % (proc.pid, exit_code))
 
     return exit_code
 
