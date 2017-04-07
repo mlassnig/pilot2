@@ -59,7 +59,7 @@ def _call(args, executable, cwd=os.getcwd(), logger=logger):
             time.sleep(3)
             process.kill()
             return False
-        
+
         exit_code = process.poll()
 
     logger.info('finished -- pid=%s exit_code=%s' % (process.pid, exit_code))
