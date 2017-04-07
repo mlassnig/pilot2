@@ -11,7 +11,6 @@
 import Queue
 import os
 import threading
-import time
 import urllib
 
 from pilot.util import https
@@ -131,21 +130,12 @@ def retrieve(queues, traces, args):
 
         if res is None:
             logger.warning('did not get a job -- sleep 1000s and repeat')
-            for i in xrange(10000):
-                if args.graceful_stop.is_set():
-                    break
-                time.sleep(0.1)
+            args.graceful_stop.wait(timeout=1000)
         else:
             if res['StatusCode'] != 0:
                 logger.warning('did not get a job -- sleep 1000s and repeat -- status: %s' % res['StatusCode'])
-                for i in xrange(10000):
-                    if args.graceful_stop.is_set():
-                        break
-                    time.sleep(0.1)
+                args.graceful_stop.wait(timeout=1000)
             else:
                 logger.info('got job: %s -- sleep 1000s before trying to get another job' % res['PandaID'])
                 queues.jobs.put(res)
-                for i in xrange(10000):
-                    if args.graceful_stop.is_set():
-                        break
-                    time.sleep(0.1)
+                args.graceful_stop.wait(timeout=1000)

@@ -114,29 +114,19 @@ def run_payload(job, out, err):
 def wait_graceful(args, proc, job):
     log = logger.getChild(str(job['PandaID']))
 
-    breaker = False
     exit_code = None
-    while True:
-        for i in xrange(100):
-            if args.graceful_stop.is_set():
-                breaker = True
-                log.debug('breaking -- sending SIGTERM pid=%s' % proc.pid)
-                proc.terminate()
-                break
-            time.sleep(0.1)
-        if breaker:
+    while exit_code is None and not args.graceful_stop.is_set():
+        if args.graceful_stop.wait(timeout=10):
+            log.debug('breaking -- sending SIGTERM pid=%s' % proc.pid)
+            proc.terminate()
             log.debug('breaking -- sleep 3s before sending SIGKILL pid=%s' % proc.pid)
             time.sleep(3)
             proc.kill()
-            break
-
-        exit_code = proc.poll()
-        log.info('running: pid=%s exit_code=%s' % (proc.pid, exit_code))
-        if exit_code is not None:
-            break
         else:
-            send_state(job, 'running')
-            continue
+            exit_code = proc.poll()
+            log.info('running: pid=%s exit_code=%s' % (proc.pid, exit_code))
+            if exit_code is None:
+                send_state(job, 'running')
 
     return exit_code
 
@@ -152,10 +142,7 @@ def execute(queues, traces, args):
             peek = [s_job for s_job in q_snapshot if job['PandaID'] == s_job['PandaID']]
             if len(peek) == 0:
                 queues.validated_payloads.put(job)
-                for i in xrange(10):
-                    if args.graceful_stop.is_set():
-                            break
-                    time.sleep(0.1)
+                args.graceful_stop.wait(timeout=1)
                 continue
 
             log.debug('opening payload stdout/err logs')

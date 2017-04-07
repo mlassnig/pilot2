@@ -68,7 +68,7 @@ if __name__ == '__main__':
                             required=True,
                             help='MANDATORY: queue name (e.g., AGLT2_TEST-condor')
 
-    # graciously stop pilot process after hard limit
+    # ask panda for jobs only with the given prod/source label
     arg_parser.add_argument('-j',
                             dest='job_label',
                             default='mtest',
