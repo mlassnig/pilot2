@@ -118,7 +118,7 @@ def wait_graceful(args, proc, job):
     exit_code = None
     while exit_code is None:
         send_state(job, 'running')
-        args.graceful_stop.wait(timeout=10):
+        args.graceful_stop.wait(timeout=10)
         if args.graceful_stop.is_set():
             log.debug('breaking -- sending SIGTERM pid=%s' % proc.pid)
             proc.terminate()
