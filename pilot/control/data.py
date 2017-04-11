@@ -52,7 +52,8 @@ def _call(args, executable, cwd=os.getcwd(), logger=logger):
 
     exit_code = None
     while exit_code is None:
-        if args.graceful_stop.wait(timeout=1):
+        args.graceful_stop.wait(timeout=1)
+        if args.graceful_stop.is_set():
             logger.debug('breaking: sending SIGTERM pid=%s' % process.pid)
             process.terminate()
             logger.debug('breaking: sleep 3s before sending SIGKILL pid=%s' % process.pid)
