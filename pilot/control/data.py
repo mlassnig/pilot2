@@ -7,6 +7,7 @@
 # Authors:
 # - Mario Lassnig, mario.lassnig@cern.ch, 2016-2017
 # - Daniel Drizhuk, d.drizhuk@gmail.com, 2017
+# - Tobias Wegner, tobias.wegner@cern.ch, 2017
 
 import copy
 import Queue
@@ -50,27 +51,18 @@ def _call(args, executable, cwd=os.getcwd(), logger=logger):
 
     logger.info('started -- pid=%s executable=%s' % (process.pid, executable))
 
-    breaker = False
     exit_code = None
-    while True:
-        for i in xrange(10):
-            if args.graceful_stop.is_set():
-                breaker = True
-                logger.debug('breaking: sending SIGTERM pid=%s' % process.pid)
-                process.terminate()
-                break
-            time.sleep(0.1)
-        if breaker:
+    while exit_code is None:
+        args.graceful_stop.wait(timeout=1)
+        if args.graceful_stop.is_set():
+            logger.debug('breaking: sending SIGTERM pid=%s' % process.pid)
+            process.terminate()
             logger.debug('breaking: sleep 3s before sending SIGKILL pid=%s' % process.pid)
             time.sleep(3)
             process.kill()
-            break
+            return False
 
         exit_code = process.poll()
-        if exit_code is not None:
-            break
-        else:
-            continue
 
     logger.info('finished -- pid=%s exit_code=%s' % (process.pid, exit_code))
     stdout, stderr = process.communicate()
@@ -87,12 +79,15 @@ def _stage_in(args, job):
     log = logger.getChild(str(job['PandaID']))
 
     os.environ['RUCIO_LOGGING_FORMAT'] = '{0}%(asctime)s %(levelname)s [%(message)s]'
-    if not _call(args,
-                 ['/usr/bin/env',
+
+    executable = ['/usr/bin/env',
                   'rucio', '-v', 'download',
                   '--no-subdir',
                   '--rse', job['ddmEndPointIn'],
-                  '%s:%s' % (job['scopeIn'], job['inFiles'])],
+                  '%s:%s' % (job['scopeIn'], job['inFiles'])]
+
+    if not _call(args,
+                 executable,
                  cwd=job['working_dir'],
                  logger=log):
         return False
@@ -235,6 +230,7 @@ def _stage_out(args, outfile, job):
     log = logger.getChild(str(job['PandaID']))
 
     os.environ['RUCIO_LOGGING_FORMAT'] = '{0}%(asctime)s %(levelname)s [%(message)s]'
+
     executable = ['/usr/bin/env',
                   'rucio', '-v', 'upload',
                   '--summary', '--no-register',
@@ -243,47 +239,10 @@ def _stage_out(args, outfile, job):
                   '--scope', outfile['scope'],
                   outfile['name']]
 
-    try:
-        process = subprocess.Popen(executable,
-                                   bufsize=-1,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE,
-                                   cwd=job['working_dir'])
-    except Exception as e:
-        log.error('could not execute: %s' % str(e))
-        return None
-
-    log.info('started -- pid=%s executable=%s' % (process.pid, executable))
-
-    breaker = False
-    exit_code = None
-    while True:
-        for i in xrange(10):
-            if args.graceful_stop.is_set():
-                breaker = True
-                log.debug('breaking -- sending SIGTERM pid=%s' % process.pid)
-                process.terminate()
-                break
-            time.sleep(0.1)
-        if breaker:
-            log.debug('breaking -- sleep 3s before sending SIGKILL pid=%s' % process.pid)
-            time.sleep(3)
-            process.kill()
-            break
-
-        exit_code = process.poll()
-        log.info('running -- pid=%s exit_code=%s' % (process.pid, exit_code))
-        if exit_code is not None:
-            break
-        else:
-            continue
-
-    log.info('finished -- pid=%s exit_code=%s' % (process.pid, exit_code))
-    out, err = process.communicate()
-    log.debug('stdout:\n%s' % out)
-    log.debug('stderr:\n%s' % err)
-
-    if exit_code is None:
+    if not _call(args,
+                 executable,
+                 cwd=job['working_dir'],
+                 logger=log):
         return None
 
     summary = None
