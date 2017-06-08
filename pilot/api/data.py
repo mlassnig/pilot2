@@ -6,10 +6,28 @@
 #
 # Authors:
 # - Mario Lassnig, mario.lassnig@cern.ch, 2017
+# - Wen Guan, wen.guan@cern.ch, 2017
 
 import os
 
 from pilot.control import data
+
+
+class TransferRequest(object):
+    """
+    Transfer request to handle files stagein/stageout
+    """
+
+    _attrs = ['type']  # stagein, stageout, ...
+    _attrs += ['scope', 'name', 'guid', 'filesize', 'checksum']  # file info
+    _attrs += ['dataset', 'ddmendpoint', 'jobqueue']
+    _attrs += ['objectstoreId']  # special for ES
+    _attrs += ['allowRemoteInputs']  # control options
+    _attrs += ['status', 'destPfn']  # transfer result
+
+    def __init__(self, **kwargs):
+        for k in self._attrs:
+            setattr(self, k, kwargs.get(k, getattr(self, k, None)))
 
 
 class StageInClient(object):
